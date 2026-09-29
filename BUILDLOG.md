@@ -1,0 +1,13 @@
+# Build Log
+
+## Phase 3: Matching Engine
+
+AI drafted the guard module, embedding provider, matching/post services, and the posts/suggestions routers in one pass, following the schemas already fixed in `docs/ARCHITECTURE.md`.
+
+**Guard design.** `guard/check.py` is plain dataclasses and functions — no DB session, no HTTP, no provider calls. It takes an image-metadata-like object, a post-metadata-like object, a similarity float, and a `GuardConfig`, and returns `(verdict, checks)`. Keeping it pure means the fox/wolf distinction can be tested with two throwaway dataclasses and no database, which is what `tests/unit/test_guard.py` does. All four checks (confidence, category, taxon, similarity) always run — never short-circuit — so a caller always gets every failing reason, not just the first one. The taxon check is skipped only when `post_meta.taxon` is falsy, matching "no identifiable subject" from the design doc.
+
+**Where AI was wrong.** The first embedding calls all failed with "Expected 768-dim embedding, got 3072" — `gemini-embedding-2` defaults to a 3072-dim output, and reading the SDK's `EmbedContentResponse`/`ContentEmbedding` types (not the pseudocode in `ARCHITECTURE.md`, which assumed a flat `.embedding` attribute that doesn't exist in this SDK version) showed `output_dimensionality` has to be passed explicitly in `EmbedContentConfig` to truncate to 768. Also, the Gemini Developer API's `embed_content` doesn't return token usage at all (only the Vertex path does), so cost logging for embeddings uses a `len(text)//4` estimate instead of a real token count — flagged as an approximation, not exact.
+
+**Asymmetric retrieval.** Image captions are embedded with `task_type="RETRIEVAL_DOCUMENT"`, post title+body with `task_type="RETRIEVAL_QUERY"` — matching the "document vs. query" split called out in `DESIGN.md`, rather than the single `SEMANTIC_SIMILARITY` task type suggested in the phase-plan pseudocode.
+
+**Proof.** `tests/unit/test_guard.py` (7 cases, all passing) asserts specific check names and reason substrings, not just the verdict — including a case that confirms confidence/category/taxon/similarity all fail together instead of short-circuiting. Live end-to-end: `POST /posts` for a fox post and a wolf post each returned `status: accepted` with the matching-species image at rank 1; forcing the wolf image onto the fox post via `POST /posts/{id}/check` returned `rejected` with reason `"Animal mismatch: expected fox, got wolf"`; a post about castles (absent from the corpus) returned `no_confident_match` with per-image reasons. Approve/reject on `/suggestions/{id}` is idempotent — verified by calling `/approve` twice and confirming only one `reviews` row was written.

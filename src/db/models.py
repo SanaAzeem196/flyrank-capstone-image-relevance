@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text, ARRAY, BIGINT, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, Text, ARRAY, BIGINT, JSON, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 from pgvector.sqlalchemy import Vector
@@ -50,6 +50,70 @@ class Job(Base):
     progress = Column(JSON)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class ImageVector(Base):
+    __tablename__ = "image_vectors"
+
+    id = Column(BIGINT, primary_key=True)
+    image_id = Column(BIGINT, unique=True, nullable=False)
+    tenant_id = Column(String, nullable=False, index=True)
+    embedding = Column(Vector(768))
+    model = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Post(Base):
+    __tablename__ = "posts"
+
+    id = Column(BIGINT, primary_key=True)
+    tenant_id = Column(String, nullable=False, index=True)
+    title = Column(String, nullable=False)
+    body = Column(Text, nullable=False)
+    subject = Column(String)
+    taxon = Column(String, index=True)
+    category = Column(String, index=True)
+    subject_confidence = Column(Float)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PostVector(Base):
+    __tablename__ = "post_vectors"
+
+    id = Column(BIGINT, primary_key=True)
+    post_id = Column(BIGINT, unique=True, nullable=False)
+    tenant_id = Column(String, nullable=False, index=True)
+    embedding = Column(Vector(768))
+    model = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Suggestion(Base):
+    __tablename__ = "suggestions"
+
+    id = Column(BIGINT, primary_key=True)
+    tenant_id = Column(String, nullable=False, index=True)
+    post_id = Column(BIGINT, nullable=False, index=True)
+    image_id = Column(BIGINT, nullable=False)
+    rank = Column(Integer, nullable=False)
+    similarity = Column(Float, nullable=False)
+    verdict = Column(String, nullable=False)
+    guard_checks = Column(JSON, nullable=False)
+    review_status = Column(String, default="pending")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("post_id", "image_id"),)
+
+
+class Review(Base):
+    __tablename__ = "reviews"
+
+    id = Column(BIGINT, primary_key=True)
+    tenant_id = Column(String, nullable=False)
+    suggestion_id = Column(BIGINT, nullable=False, index=True)
+    decision = Column(String)
+    note = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 
 class CostLog(Base):
     __tablename__ = "cost_log"
