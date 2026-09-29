@@ -1,0 +1,20 @@
+# secrets
+.env
+*.pem
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+# data (reproduced by scripts/download_corpus.py)
+corpus/images/
+*.log
+# os / editor
+.DS_Store
+.idea/
+.vscode/
+uv.lock
+
